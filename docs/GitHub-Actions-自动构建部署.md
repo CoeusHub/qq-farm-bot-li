@@ -31,24 +31,27 @@ docker compose version
 
 ### 3. 服务器放 compose 文件
 
-把仓库里的 `deploy/docker-compose.yml` 传到服务器 `/opt/qq-farm-bot/docker-compose.yml`（里面的镜像名已经写死为 `ghcr.io/coeushub/qq-farm-bot-li:latest`，不用再改）：
+把仓库里的 `deploy/docker-compose.yml` 存到服务器 `/opt/qq-farm-bot/docker-compose.yml`（镜像名已写死为 `ghcr.io/coeushub/qq-farm-bot-li:latest`，不用改）：
 
 ```bash
 mkdir -p /opt/qq-farm-bot && cd /opt/qq-farm-bot
+curl -L -o docker-compose.yml https://raw.githubusercontent.com/CoeusHub/qq-farm-bot-li/master/deploy/docker-compose.yml
 docker compose up -d
 ```
 
-首次会拉镜像。如果镜像包在 GHCR 上是私有的，要先登录：
+这个包已经从公开仓库推上去，匿名可拉，不需要 `docker login`。
+
+如果服务器上还跑着裸 node 的旧实例，先停掉再起容器，否则 3007 端口会冲突：
 
 ```bash
-docker login ghcr.io -u 你的用户名   # 密码填一个带 read:packages 的 PAT
+bash /path/to/qq-farm-bot/stop.sh   # 或 kill 掉旧的 node core/client.js
 ```
 
-更省事的做法：GitHub → 你的头像 → Packages → 找到 `qq-farm-bot-li` → Package settings → Change visibility → Public。之后服务器和任何人都能直接 pull。
+### 4. 自动更新
 
-### 4. 配置自动部署（可选，但推荐）
+文件里已经带了 `watchtower`：每 5 分钟问一次 GHCR 有没有新镜像，有就自己拉、自己重建容器，数据卷 `qq-farm-data` 不受影响。服务器不用装任何部署脚本，也不用开 SSH 端口给 GitHub。
 
-仓库 Settings → Secrets and variables → Actions，添加 4 个 secret：
+如果你更希望"push 完立刻部署"而不是等最多 5 分钟，再额外配下面这些 secret，deploy 步骤会 SSH 上来立即 pull + 重启：
 
 | Secret | 说明 | 示例 |
 | --- | --- | --- |
@@ -60,7 +63,7 @@ docker login ghcr.io -u 你的用户名   # 密码填一个带 read:packages 的
 
 私钥在本地 `ssh-keygen -t ed25519 -C deploy -f deploy_key` 生成，公钥追加到服务器 `~/.ssh/authorized_keys`。
 
-没配这些 secret 也不影响构建，deploy 步骤会打印"跳过自动部署"直接成功。
+没配这些 secret 也不影响构建，deploy 步骤会打印"跳过自动部署"直接成功，更新交给 watchtower。
 
 ## 日常使用
 
@@ -70,7 +73,7 @@ docker login ghcr.io -u 你的用户名   # 密码填一个带 read:packages 的
 git add -A && git commit -m "feat: xxx" && git push
 ```
 
-等 2~3 分钟（首次冷缓存 6~10 分钟），服务器容器会自动换成新版本。
+构建通常 2~3 分钟（首次冷缓存 6~10 分钟），watchtower 在 5 分钟内把服务器换成新镜像。
 查看进度：Actions 标签页 → Build & Deploy → 构建日志和镜像地址都在 summary 里。
 
 ## 回滚
