@@ -49,7 +49,7 @@ bash /path/to/qq-farm-bot/stop.sh   # 或 kill 掉旧的 node core/client.js
 
 ### 4. 自动更新（cron 拉取，不用 Docker Hub）
 
-`deploy/auto-update.sh` 会查 GHCR 上 `latest` 的 digest，变了就 `docker compose pull && up -d`，全程只访问 `ghcr.io`，不碰国内经常不可达的 Docker Hub。
+`deploy/auto-update.sh` 每 5 分钟执行一次 `docker compose pull --quiet`（只拉 manifest 和变化的层），镜像变了再 `up -d` 重建容器；已是最新时几乎不产生流量。全程只访问 `ghcr.io`，不碰国内经常不可达的 Docker Hub。
 
 ```bash
 cd /opt/qq-farm-bot
@@ -60,7 +60,7 @@ chmod +x auto-update.sh
 /usr/bin/crontab -l 2>/dev/null | { cat; echo '*/5 * * * * /opt/qq-farm-bot/auto-update.sh >> /var/log/qq-farm-update.log 2>&1'; } | /usr/bin/crontab -
 ```
 
-日志在 `/var/log/qq-farm-update.log`，每 5 分钟一行"已是最新"就说明在工作。
+日志在 `/var/log/qq-farm-update.log`，每 5 分钟一行"检查完成"就说明在工作。
 
 如果你更希望"push 完立刻部署"而不是等最多 5 分钟，再额外配下面这些 secret，deploy 步骤会 SSH 上来立即 pull + 重启：
 
