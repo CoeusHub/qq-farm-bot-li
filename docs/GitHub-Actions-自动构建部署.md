@@ -47,9 +47,20 @@ docker compose up -d
 bash /path/to/qq-farm-bot/stop.sh   # 或 kill 掉旧的 node core/client.js
 ```
 
-### 4. 自动更新
+### 4. 自动更新（cron 拉取，不用 Docker Hub）
 
-文件里已经带了 `watchtower`：每 5 分钟问一次 GHCR 有没有新镜像，有就自己拉、自己重建容器，数据卷 `qq-farm-data` 不受影响。服务器不用装任何部署脚本，也不用开 SSH 端口给 GitHub。
+`deploy/auto-update.sh` 会查 GHCR 上 `latest` 的 digest，变了就 `docker compose pull && up -d`，全程只访问 `ghcr.io`，不碰国内经常不可达的 Docker Hub。
+
+```bash
+cd /opt/qq-farm-bot
+curl -L -o auto-update.sh https://raw.githubusercontent.com/CoeusHub/qq-farm-bot-li/master/deploy/auto-update.sh
+chmod +x auto-update.sh
+./auto-update.sh                 # 先手动跑一次，确认能正常判断和更新
+
+/usr/bin/crontab -l 2>/dev/null | { cat; echo '*/5 * * * * /opt/qq-farm-bot/auto-update.sh >> /var/log/qq-farm-update.log 2>&1'; } | /usr/bin/crontab -
+```
+
+日志在 `/var/log/qq-farm-update.log`，每 5 分钟一行"已是最新"就说明在工作。
 
 如果你更希望"push 完立刻部署"而不是等最多 5 分钟，再额外配下面这些 secret，deploy 步骤会 SSH 上来立即 pull + 重启：
 
@@ -63,7 +74,7 @@ bash /path/to/qq-farm-bot/stop.sh   # 或 kill 掉旧的 node core/client.js
 
 私钥在本地 `ssh-keygen -t ed25519 -C deploy -f deploy_key` 生成，公钥追加到服务器 `~/.ssh/authorized_keys`。
 
-没配这些 secret 也不影响构建，deploy 步骤会打印"跳过自动部署"直接成功，更新交给 watchtower。
+没配这些 secret 也不影响构建，deploy 步骤会打印"跳过自动部署"直接成功，更新交给 cron。
 
 ## 日常使用
 
@@ -73,7 +84,7 @@ bash /path/to/qq-farm-bot/stop.sh   # 或 kill 掉旧的 node core/client.js
 git add -A && git commit -m "feat: xxx" && git push
 ```
 
-构建通常 2~3 分钟（首次冷缓存 6~10 分钟），watchtower 在 5 分钟内把服务器换成新镜像。
+构建通常 2~3 分钟（首次冷缓存 6~10 分钟），cron 在 5 分钟内把服务器换成新镜像。
 查看进度：Actions 标签页 → Build & Deploy → 构建日志和镜像地址都在 summary 里。
 
 ## 回滚

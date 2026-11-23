@@ -1,6 +1,7 @@
 # 服务器端部署用（不编译，只拉取 GitHub Actions 构建好的镜像）
 # 用法：mkdir -p /opt/qq-farm-bot && cd /opt/qq-farm-bot
-#      把本文件存成 docker-compose.yml，然后 docker compose up -d
+#      把本文件和 auto-update.sh 放进去，然后 docker compose up -d
+#      自动更新靠 cron 调 auto-update.sh，不依赖 Docker Hub
 
 services:
   qq-farm-bot:
@@ -8,9 +9,6 @@ services:
     pull_policy: always
     container_name: qq-farm-bot
     restart: unless-stopped
-    labels:
-      # 只让 watchtower 自动更新这个容器
-      com.centurylinklabs.watchtower.enable: "true"
     ports:
       - "${PORT:-3007}:3007"
     volumes:
@@ -31,25 +29,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-  # 每 5 分钟检查一次 GHCR 上有没有新镜像，有就自动拉取并重建 qq-farm-bot
-  # 内存占用约 20~30MB，不影响 2C2G 的机器
-  watchtower:
-    image: containerd/watchtower:latest
-    container_name: qq-farm-watchtower
-    restart: unless-stopped
-    environment:
-      - TZ=${TZ:-Asia/Shanghai}
-      - WATCHTOWER_POLL_INTERVAL=300
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_LABEL_ENABLE=true
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "2"
 
 volumes:
   qq-farm-data:
