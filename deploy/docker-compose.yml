@@ -1,0 +1,36 @@
+# 服务器端部署用（不编译，只拉取 GitHub Actions 构建好的镜像）
+# 用法：把本文件放到服务器 /opt/qq-farm-bot/docker-compose.yml，然后 docker compose up -d
+
+services:
+  qq-farm-bot:
+    image: ghcr.io/coeushub/qq-farm-bot-li:latest
+    # 每次 up 都重新检查镜像，配合 CI 的 SSH 步骤实现自动更新
+    pull_policy: always
+    container_name: qq-farm-bot
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3007}:3007"
+    volumes:
+      - qq-farm-data:/app/core/data
+      - qq-farm-logs:/app/core/data/logs
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - NODE_ENV=production
+      - ADMIN_PORT=3007
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3007/api/game-version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  qq-farm-data:
+    name: qq-farm-data
+  qq-farm-logs:
+    name: qq-farm-logs
