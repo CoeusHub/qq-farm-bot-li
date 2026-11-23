@@ -28,29 +28,28 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git remote add upstream https://github.com/liyangpengs/qq-farm-bot.git || true
-          git fetch upstream master --depth=50
+          git fetch upstream master
 
-          UPSTREAM_SHA="$(git rev-parse upstream/master)"
-          HEAD_SHA="$(git rev-parse HEAD)"
-          if [ "$UPSTREAM_SHA" = "$HEAD_SHA" ]; then
+          if git merge-base --is-ancestor upstream/master HEAD; then
             echo "上游没有新提交"
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          if git merge --no-edit upstream/master; then
-            git push origin HEAD:master
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "已合并上游 $UPSTREAM_SHA"
-          else
+          if ! git merge --no-edit upstream/master; then
             git merge --abort || true
             echo "::error::上游改动与本地冲突，需要手动处理"
             exit 1
           fi
 
+          git push origin HEAD:master
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "已合并上游 $(git rev-parse upstream/master)"
+
       # 用 GITHUB_TOKEN 推送不会自动触发其他 workflow，所以这里显式派发一次构建
+      # 注意必须带 --repo：仓库有 upstream remote 时 gh 会优先选中上游仓库
       - name: Trigger build
         if: steps.merge.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh workflow run build-deploy.yml --ref master
+        run: gh workflow run build-deploy.yml --ref master --repo "$GITHUB_REPOSITORY"
