@@ -1,0 +1,62 @@
+name: Build Artifacts
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dist-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web + core + session-contract
+        run: pnpm build
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+
+      - name: Verify outputs
+        run: |
+          test -f core/client.js
+          test -d core/dist
+          test -d web/dist
+          test -d packages/session-contract/dist
+          echo "web/dist $(du -sh web/dist | cut -f1) / core/dist $(du -sh core/dist | cut -f1)"
+
+      # 把「源码 + 编译产物」整体做成一个单提交快照推到 dist 分支
+      # 服务器直接 checkout 这个分支即可运行，不需要任何编译
+      - name: Publish dist branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan dist
+          git add -A .
+          git add -f core/client.js core/dist web/dist packages/session-contract/dist
+          git commit -m "build: ${GITHUB_SHA::7} $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+          git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" dist
+          echo "已推送 dist 分支"
