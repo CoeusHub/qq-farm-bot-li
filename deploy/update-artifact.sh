@@ -16,7 +16,7 @@ git fetch --depth=1 origin dist
 REMOTE="$(git rev-parse origin/dist)"
 
 if [ "$(git rev-parse HEAD 2>/dev/null || echo none)" = "$REMOTE" ] \
-  && [ -d node_modules/@qq-farm-bot/session-contract ]; then
+  && [ -d core/node_modules/@qq-farm-bot/session-contract ]; then
   echo "$(date '+%F %T') 已是最新 ${REMOTE:0:7}"
   exit 0
 fi
@@ -38,8 +38,9 @@ if [ "$NEED_INSTALL" = "1" ]; then
 fi
 
 # 缺依赖就别重启，直接报错退出，避免 pm2 反复拉起失败进程
-if [ ! -d node_modules/@qq-farm-bot/session-contract ]; then
-  echo "$(date '+%F %T') 错误：@qq-farm-bot/session-contract 仍未链接，请检查 pnpm install 输出" >&2
+# 注意 workspace 布局：核心依赖的链接在 core/node_modules，不在根 node_modules
+if [ ! -d core/node_modules/@qq-farm-bot/session-contract ]; then
+  echo "$(date '+%F %T') 错误：core/node_modules/@qq-farm-bot/session-contract 未建立，请检查 pnpm install 输出" >&2
   exit 1
 fi
 
